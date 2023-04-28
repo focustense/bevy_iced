@@ -56,7 +56,7 @@ use iced::{user_interface, Element, UserInterface};
 pub use iced_native as iced;
 use iced_native::{Debug, Size};
 pub use iced_wgpu;
-use iced_wgpu::{wgpu, Viewport};
+use iced_wgpu::{wgpu, Settings, Viewport};
 
 mod conversions;
 mod render;
@@ -66,13 +66,28 @@ use systems::IcedEventQueue;
 
 /// The main feature of `bevy_iced`.
 /// Add this to your [`App`] by calling `app.add_plugin(bevy_iced::IcedPlugin)`.
-pub struct IcedPlugin;
+pub struct IcedPlugin {
+    settings: Option<Settings>,
+}
+
+impl IcedPlugin {
+    /// Creates an instance of the plugin with default `iced` settings.
+    pub fn default() -> IcedPlugin {
+        Self { settings: None }
+    }
+
+    /// Creates an instance of the plugin with custom `iced` settings.
+    pub fn with_settings(settings: Settings) -> IcedPlugin {
+        Self { settings: Some(settings) }
+    }
+}
 
 impl Plugin for IcedPlugin {
     fn build(&self, app: &mut App) {
         let default_viewport = Viewport::with_physical_size(Size::new(1600, 900), 1.0);
         let default_viewport = ViewportResource(default_viewport);
-        let iced_resource: IcedResource = IcedProps::new(app).into();
+        let settings = self.settings.unwrap_or(Default::default());
+        let iced_resource: IcedResource = IcedProps::new(app, settings).into();
 
         app.add_system(systems::process_input)
             .add_system(render::update_viewport)
@@ -99,7 +114,7 @@ struct IcedProps {
 }
 
 impl IcedProps {
-    fn new(app: &App) -> Self {
+    fn new(app: &App, settings: Settings) -> Self {
         let device = app
             .sub_app(RenderApp)
             .world
@@ -111,7 +126,7 @@ impl IcedProps {
         Self {
             renderer: iced_wgpu::Renderer::new(iced_wgpu::Backend::new(
                 device,
-                Default::default(),
+                settings,
                 format,
             )),
             debug: Debug::new(),
