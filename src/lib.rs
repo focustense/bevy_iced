@@ -54,9 +54,10 @@ use bevy_utils::HashMap;
 use bevy_window::{PrimaryWindow, Window};
 use iced::{user_interface, Element, UserInterface};
 pub use iced_native as iced;
-use iced_native::{Debug, Size};
+use iced_native::{Debug, Point, Size};
+use iced_native::event::Status;
 pub use iced_wgpu;
-use iced_wgpu::{wgpu, Settings, Viewport};
+use iced_wgpu::{wgpu, Settings, Viewport, Primitive};
 
 mod conversions;
 mod render;
@@ -96,6 +97,7 @@ impl Plugin for IcedPlugin {
             .insert_resource(IcedSettings::default())
             .insert_non_send_resource(IcedCache::default())
             .insert_resource(IcedEventQueue::default())
+            .init_resource::<IcedDisplayResult>()
             .insert_resource(default_viewport.clone());
 
         let render_app = app.sub_app_mut(RenderApp);
@@ -206,6 +208,15 @@ impl Default for IcedSettings {
     }
 }
 
+/// Result of a [`display`] pass.
+#[derive(Default, Resource)]
+pub struct IcedDisplayResult {
+    /// Contains all events that were captured during the pass.
+    pub captured_events: Vec<iced_native::Event>,
+    /// Is the mouse cursor over some interactive element?
+    pub wants_pointer_input: bool,
+}
+
 // An atomic flag for updating the draw state.
 #[derive(Resource, Deref, DerefMut, Default)]
 pub(crate) struct DidDraw(std::sync::atomic::AtomicBool);
@@ -232,6 +243,7 @@ pub struct IcedContext<'w, 's, Message: Event> {
     did_draw: ResMut<'w, DidDraw>,
     #[cfg(feature = "touch")]
     touches: Res<'w, Touches>,
+    result: ResMut<'w, IcedDisplayResult>,
 }
 
 impl<'w, 's, M: Event> IcedContext<'w, 's, M> {
@@ -263,7 +275,7 @@ impl<'w, 's, M: Event> IcedContext<'w, 's, M> {
         let cache_entry = self.cache_map.get::<M>();
         let cache = cache_entry.take().unwrap();
         let mut ui = UserInterface::build(element, bounds, cache, renderer);
-        let (_, _event_statuses) = ui.update(
+        let (_, event_statuses) = ui.update(
             self.events.as_slice(),
             cursor_position,
             renderer,
@@ -280,10 +292,39 @@ impl<'w, 's, M: Event> IcedContext<'w, 's, M> {
             cursor_position,
         );
 
+        self.result.captured_events = self.events.iter()
+            .zip(event_statuses)
+            .filter_map(|(ev, status)|
+                if status == Status::Captured { Some(ev.clone()) } else { None })
+            .collect::<Vec<_>>();
         self.events.clear();
         *cache_entry = Some(ui.into_cache());
         self.did_draw
             .store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let mut wants_pointer_input = false;
+        renderer.with_primitives(|_, primitives| primitives.iter().for_each(|primitive| {
+            if !wants_pointer_input && hit_test(primitive, cursor_position) {
+                wants_pointer_input = true;
+            }
+        }));
+        self.result.wants_pointer_input = wants_pointer_input;
+    }
+}
+
+fn hit_test(primitive: &Primitive, cursor_position: Point) -> bool {
+    match primitive {
+        Primitive::None => false,
+        Primitive::Quad { bounds, .. } => bounds.contains(cursor_position),
+        Primitive::Text { bounds, .. } => bounds.contains(cursor_position),
+        Primitive::Image { bounds, .. } => bounds.contains(cursor_position),
+        Primitive::Group { primitives } => primitives.iter().any(|p| hit_test(p, cursor_position)),
+        Primitive::Clip { bounds, content } =>
+            bounds.contains(cursor_position) && hit_test(content, cursor_position),
+        Primitive::Translate { translation, content } =>
+            hit_test(content, cursor_position + *translation),
+        Primitive::Svg { bounds, .. } => bounds.contains(cursor_position),
+        _ => false
     }
 }
 
