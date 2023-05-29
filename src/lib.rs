@@ -56,6 +56,7 @@ use bevy_render::{
     renderer::{RenderDevice, RenderQueue},
     ExtractSchedule, RenderApp,
 };
+use bevy_time::Time;
 use bevy_utils::HashMap;
 use bevy_window::{CursorIcon, PrimaryWindow, Window};
 use iced::{user_interface::Cache as UiCache, UserInterface};
@@ -67,9 +68,10 @@ pub use iced_runtime as iced;
 use iced_runtime::{
     core::{
         clipboard,
-        event::Status,
+        event::{Status, TickEvent},
         mouse::Interaction,
-        Element, Event as IcedEvent, Point, Size},
+        Element, Event as IcedEvent, Point, Size
+    },
     Debug,
 };
 #[cfg(feature = "touch")]
@@ -269,6 +271,7 @@ pub struct IcedContext<'w, 's, Message: Event> {
     cache_map: NonSendMut<'w, IcedCache>,
     messages: EventWriter<'w, Message>,
     did_draw: ResMut<'w, DidDraw>,
+    time: Res<'w, Time>,
     #[cfg(feature = "touch")]
     touches: Res<'w, Touches>,
     result: ResMut<'w, IcedDisplayResult>,
@@ -303,6 +306,8 @@ impl<'w, 's, M: Event> IcedContext<'w, 's, M> {
         let cache_entry = self.cache_map.get::<M>();
         let cache = cache_entry.take().unwrap();
         let mut ui = UserInterface::build(element, bounds, cache, renderer);
+        self.events.push(IcedEvent::Tick(
+            TickEvent::new(self.time.delta_seconds(), self.time.elapsed_seconds())));
         let (_, event_statuses) = ui.update(
             self.events.as_slice(),
             cursor_position,

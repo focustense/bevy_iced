@@ -22,13 +22,14 @@ bevy_ecs = "0.10"
 bevy_input = "0.10"
 bevy_math = "0.10"
 bevy_render = "0.10"
+bevy_time = "0.10"
 bevy_utils = "0.10"
 bevy_window = "0.10"
 
-iced_renderer = { git = "https://github.com/focustense/iced.git", branch = "wgpu-downgrade-0.15.1", features = ["wgpu"] }
-iced_runtime = { git = "https://github.com/focustense/iced.git", branch = "wgpu-downgrade-0.15.1" }
-iced_style = { git = "https://github.com/focustense/iced.git", branch = "wgpu-downgrade-0.15.1" }
-iced_wgpu = { git = "https://github.com/focustense/iced.git", branch = "wgpu-downgrade-0.15.1" }
+iced_renderer = { git = "https://github.com/focustense/iced.git", branch = "canvas-animation", features = ["wgpu"] }
+iced_runtime = { git = "https://github.com/focustense/iced.git", branch = "canvas-animation" }
+iced_style = { git = "https://github.com/focustense/iced.git", branch = "canvas-animation" }
+iced_wgpu = { git = "https://github.com/focustense/iced.git", branch = "canvas-animation" }
 
 [dev-dependencies]
 bevy = "0.10"
