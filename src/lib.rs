@@ -57,7 +57,7 @@ use bevy_render::{
     ExtractSchedule, RenderApp,
 };
 use bevy_utils::HashMap;
-use bevy_window::{PrimaryWindow, Window};
+use bevy_window::{CursorIcon, PrimaryWindow, Window};
 use iced::{user_interface::Cache as UiCache, UserInterface};
 use iced_renderer::{
     graphics::Primitive,
@@ -65,7 +65,11 @@ use iced_renderer::{
 };
 pub use iced_runtime as iced;
 use iced_runtime::{
-    core::{clipboard, Element, Event as IcedEvent, event::Status, Point, Size},
+    core::{
+        clipboard,
+        event::Status,
+        mouse::Interaction,
+        Element, Event as IcedEvent, Point, Size},
     Debug,
 };
 #[cfg(feature = "touch")]
@@ -260,7 +264,7 @@ pub struct IcedContext<'w, 's, Message: Event> {
     viewport: Res<'w, ViewportResource>,
     props: Res<'w, IcedResource>,
     settings: Res<'w, IcedSettings>,
-    windows: Query<'w, 's, &'static Window, With<PrimaryWindow>>,
+    windows: Query<'w, 's, &'static mut Window, With<PrimaryWindow>>,
     events: ResMut<'w, IcedEventQueue>,
     cache_map: NonSendMut<'w, IcedCache>,
     messages: EventWriter<'w, Message>,
@@ -309,12 +313,24 @@ impl<'w, 's, M: Event> IcedContext<'w, 's, M> {
 
         messages.into_iter().for_each(|msg| self.messages.send(msg));
 
-        ui.draw(
+        let interaction = ui.draw(
             renderer,
             &self.settings.theme,
             &self.settings.style,
             cursor_position,
         );
+        self.windows.single_mut().cursor.icon = match interaction {
+            Interaction::Idle => CursorIcon::Default,
+            Interaction::Pointer => CursorIcon::Hand,
+            Interaction::Grab => CursorIcon::Grab,
+            Interaction::Text => CursorIcon::Text,
+            Interaction::Crosshair => CursorIcon::Crosshair,
+            Interaction::Working => CursorIcon::Progress,
+            Interaction::Grabbing => CursorIcon::Grabbing,
+            Interaction::ResizingHorizontally => CursorIcon::ColResize,
+            Interaction::ResizingVertically => CursorIcon::RowResize,
+            Interaction::NotAllowed => CursorIcon::NotAllowed,
+        };
 
         self.result.captured_events = self.events.iter()
             .zip(event_statuses)
